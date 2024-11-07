@@ -51,7 +51,7 @@ app.post("/signin", (req, res)=>{
 	if(!req.body.emailInput || !req.body.passwordInput){
 		console.log("Andmeid puudu");
 		notice = "Sisselogimise andmeid on puudu!";
-		res.render("index",{notice: notice});
+		res.render("signin",{notice: notice});
 	}
 	else {
 		let sqlReq = "SELECT id, password FROM vp1users WHERE email = ?";
@@ -59,7 +59,7 @@ app.post("/signin", (req, res)=>{
 			if(err){
 				console.log("Viga andmebaasist lugemisel!" + err);
 				notice = "Tehniline viga, sisselogimine ebaõnnestus!";
-				res.render("index",{notice: notice});
+				res.render("signin",{notice: notice});
 			}
 			else {
 				if(result[0] != null){
@@ -67,24 +67,24 @@ app.post("/signin", (req, res)=>{
 					bcrypt.compare(req.body.passwordInput, result[0].password, (err, compareresult)=>{
 						if(err){
 							notice = "Tehniline viga, sisselogimine ebaõnnestus!";
-							res.render("index",{notice: notice});
+							res.render("signin",{notice: notice});
 						}
 						else {
 							//kas õige või vale parool
 							if(compareresult){
 								notice = "Oled sisse loginud!";
-								res.render("index",{notice: notice});
+								res.render("signin",{notice: notice});
 							}
 							else {
 								notice = "Kasutajatunnus ja/või parool on vale!";
-								res.render("index",{notice: notice});
+								res.render("signin",{notice: notice});
 							}
 						}
 					});
 				}
 				else {
 					notice = "Kasutajatunnus ja/või parool on vale!";
-					res.render("index",{notice: notice});
+					res.render("signin",{notice: notice});
 				}
 			}
 		});//conn.execute lõppeb
