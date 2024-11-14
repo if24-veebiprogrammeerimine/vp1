@@ -11,8 +11,11 @@ const multer = require("multer");
 const sharp = require("sharp");
 //parooli krüpteerimiseks
 const bcrypt = require("bcrypt");
+//sessioonihaldur
+const session = require("express-session");
 
 const app = express();
+app.use(session({secret: "minuAbsoluutseltSalajanaeAsi", saveUninitialized: true, resave: true}));
 app.set("view engine", "ejs");
 app.use(express.static("public"));
 //päringu URL-i parsimine, false kui ainult tekst, true, kui muud ka
@@ -34,6 +37,23 @@ const conn = mysql.createConnection({
 	password: dbInfo.configData.passWord,
 	database: dbInfo.configData.dataBase
 });
+
+const checkLogin = function(req, res, next){
+	if(req.session != null){
+		if(req.session.userId){
+			console.log("Login, sees kasutaja: " + req.session.userId);
+			next();
+		}
+		else {
+			console.log("login not detected");
+			res.redirect("/signin");
+		}
+	}
+	else {
+		console.log("session not detected");
+		res.redirect("/signin");
+	}
+}
 
 app.get("/", (req, res)=>{
 	//res.send("Express läks täiesti käima!");
@@ -72,8 +92,10 @@ app.post("/signin", (req, res)=>{
 						else {
 							//kas õige või vale parool
 							if(compareresult){
-								notice = "Oled sisse loginud!";
-								res.render("signin",{notice: notice});
+								//notice = "Oled sisse loginud!";
+								//res.render("signin",{notice: notice});
+								req.session.userId = result[0].id;
+								res.redirect("/home");
 							}
 							else {
 								notice = "Kasutajatunnus ja/või parool on vale!";
@@ -90,6 +112,17 @@ app.post("/signin", (req, res)=>{
 		});//conn.execute lõppeb
 	}
 	//res.render("index",{days: dtEt.daysBetween("9-2-2024")});
+});
+
+app.get("/home", checkLogin, (req, res)=>{
+	console.log("Sees on kasutaja: " + req.session.userId);
+	res.render("home");
+});
+
+app.get("/logout", (req, res)=>{
+	req.session.destroy();
+	console.log("Välja logitud");
+	res.redirect("/");
 });
 
 app.get("/signup", (req, res)=>{
@@ -275,6 +308,25 @@ app.post("/photoupload", upload.single("photoInput"), (req, res)=>{
 		}
 	});
 	//res.render("photoupload");
+});
+
+app.get("/gallery", (req, res)=>{
+	let sqlReq = "SELECT file_name, alt_text FROM vp1photos WHERE privacy = ? AND deleted IS NULL ORDER BY id DESC";
+	const privacy = 3;
+	let photoList = [];
+	conn.query(sqlReq, [privacy], (err, result)=>{
+		if(err){
+			throw err;
+		}
+		else {
+			console.log(result);
+			for(let i = 0; i < result.length; i ++) {
+				photoList.push({href: "/gallery/thumb/" + result[i].file_name, alt: result[i].alt_text, fileName: result[i].file_name});
+			}
+			res.render("gallery", {listData: photoList});
+		}
+	});
+	//res.render("gallery");
 });
 
 app.listen(5100);
