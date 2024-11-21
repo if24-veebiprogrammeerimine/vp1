@@ -13,6 +13,7 @@ const sharp = require("sharp");
 const bcrypt = require("bcrypt");
 //sessioonihaldur
 const session = require("express-session");
+const async = require("async");
 
 const app = express();
 app.use(session({secret: "minuAbsoluutseltSalajanaeAsi", saveUninitialized: true, resave: true}));
@@ -28,7 +29,7 @@ const connInga = mysql.createConnection({
 	host: dbInfo.configData.host,
 	user: dbInfo.configData.user,
 	password: dbInfo.configData.passWord,
-	database: "if24_inga_pe_TA"
+	database: "if24_inga_pe_DM"
 });
 
 const conn = mysql.createConnection({
@@ -272,13 +273,65 @@ app.get("/eestifilm/tegelased", (req, res)=>{
 			}
 			res.render("tegelased", {persons: persons});
 		}
+		
 	});
 	//res.render("tegelased");
 });
 
-app.get("/addnews", (req, res)=>{
-	res.render("addnews");
+app.get("/eestifilm/lisaSeos", (req, res)=>{
+	//võtan kasutusele async mooduli, et korraga teha mitu andmebaasipäringut
+	const filmQueries = [
+		function(callback){
+			let sqlReq1 = "SELECT id, first_name, last_name, birth_date FROM person";
+			connInga.execute(sqlReq1, (err, result)=>{
+				if(err){
+					return callback(err);
+				}
+				else {
+					return callback(null, result);
+				}
+			});
+		},
+		function(callback){
+			let sqlReq2 = "SELECT id, title, production_year FROM movie";
+			connInga.execute(sqlReq2, (err, result)=>{
+				if(err){
+					return callback(err);
+				}
+				else {
+					return callback(null, result);
+				}
+			});
+		},
+		function(callback){
+			let sqlReq3 = "SELECT id, position_name FROM position";
+			connInga.execute(sqlReq3, (err, result)=>{
+				if(err){
+					return callback(err);
+				}
+				else {
+					return callback(null, result);
+				}
+			});
+		}
+	];
+	//paneme need päringud ehk siis funktsioonid paralleelselt käima, tulemuseks saame kolme päringu koondi
+	async.parallel(filmQueries, (err, results)=>{
+		if(err){
+			throw err;
+		}
+		else{
+			console.log(results);
+			res.render("addRelations", {personList: results[0], movieList: results[1], positionList: results[2]});
+		}
+	});
+	//res.render("addRelations");
 });
+
+//uudiste osa eraldi marsruutide failiga
+const newsRouter = require("./routes/newsRoutes");
+app.use("/news", newsRouter);
+
 
 app.get("/photoupload", (req, res)=>{
 	res.render("photoupload");
