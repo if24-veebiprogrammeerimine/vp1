@@ -1,0 +1,5 @@
+Viljavedu
+Tuleb luua lehestik, mis laseb märkida, mis numbriga auto, kui palju kaalus lattu sisenemisel ja kui palju väljumisel (andmetabelis id, auto registrinumber, lattu sisenemismass ja laost väljumismass ehk tühimass).
+•	Viljaveo leht peab laskma sisestada auto, mis koorma tõi, numbri ja lattu sisenemismassi ning väljumismassi.
+•	Kokkuvõtte lehel peab saama vaadata kõiki koormaid ja veetud vilja kogumassi. Koormaid peab saama ka autonumbri järgi filtreerida (vaadata ühe auto koormaid ja veetud vilja massi).
+•	Kuna auto tühjendamise ajal võib saabuda järgmine auto, peaks alguses saama sisestada sisenemismassi ja seejärel peaks saama kõikide väljumismassita koormate seast vajalikku valida ja väljumismassi sisestada.

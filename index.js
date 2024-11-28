@@ -5,15 +5,13 @@ const dbInfo = require("../../../vp2024config");
 const mysql = require("mysql2");
 //päringu lahtiharutamiseks POST päringute puhul
 const bodyparser = require("body-parser");
-//failide üleslaadimiseks
-const multer = require("multer");
-//pildimanipalulatsiooniks (suuruse muutmine)
-const sharp = require("sharp");
 //parooli krüpteerimiseks
 const bcrypt = require("bcrypt");
 //sessioonihaldur
 const session = require("express-session");
 const async = require("async");
+//general failis on ssselogimise kontroll
+const general = require("./generalFnc");
 
 const app = express();
 app.use(session({secret: "minuAbsoluutseltSalajanaeAsi", saveUninitialized: true, resave: true}));
@@ -21,16 +19,8 @@ app.set("view engine", "ejs");
 app.use(express.static("public"));
 //päringu URL-i parsimine, false kui ainult tekst, true, kui muud ka
 app.use(bodyparser.urlencoded({extended: true}));
-//seadistame vahevara multer fotode laadimiseks kindlasse kataloogi
-const upload = multer({dest: "./public/gallery/orig/"});
 
 //loon andmebaasiühenduse
-const connInga = mysql.createConnection({
-	host: dbInfo.configData.host,
-	user: dbInfo.configData.user,
-	password: dbInfo.configData.passWord,
-	database: "if24_inga_pe_DM"
-});
 
 const conn = mysql.createConnection({
 	host: dbInfo.configData.host,
@@ -39,23 +29,6 @@ const conn = mysql.createConnection({
 	database: dbInfo.configData.dataBase
 });
 
-const checkLogin = function(req, res, next){
-	if(req.session != null){
-		if(req.session.userId){
-			console.log("Login, sees kasutaja: " + req.session.userId);
-			next();
-		}
-		else {
-			console.log("login not detected");
-			res.redirect("/signin");
-		}
-	}
-	else {
-		console.log("session not detected");
-		res.redirect("/signin");
-	}
-}
-
 app.get("/", (req, res)=>{
 	//res.send("Express läks täiesti käima!");
 	/*const fileList = fs.readdirSync("public/banner/");
@@ -63,59 +36,11 @@ app.get("/", (req, res)=>{
 	res.render("index",{days: dtEt.daysBetween("9-2-2024")});
 });
 
-app.get("/signin", (req, res)=>{
-	res.render("signin");
-});
+//eesti filmi osa eraldi marsruutide failiga
+const signinRouter = require('./routes/signinRoutes');
+app.use('/signin', signinRouter);
 
-app.post("/signin", (req, res)=>{
-	let notice = "";
-	if(!req.body.emailInput || !req.body.passwordInput){
-		console.log("Andmeid puudu");
-		notice = "Sisselogimise andmeid on puudu!";
-		res.render("signin",{notice: notice});
-	}
-	else {
-		let sqlReq = "SELECT id, password FROM vp1users WHERE email = ?";
-		conn.execute(sqlReq, [req.body.emailInput], (err, result)=>{
-			if(err){
-				console.log("Viga andmebaasist lugemisel!" + err);
-				notice = "Tehniline viga, sisselogimine ebaõnnestus!";
-				res.render("signin",{notice: notice});
-			}
-			else {
-				if(result[0] != null){
-					//kasutaja on olemas, kontrollime sisestatud parooli
-					bcrypt.compare(req.body.passwordInput, result[0].password, (err, compareresult)=>{
-						if(err){
-							notice = "Tehniline viga, sisselogimine ebaõnnestus!";
-							res.render("signin",{notice: notice});
-						}
-						else {
-							//kas õige või vale parool
-							if(compareresult){
-								//notice = "Oled sisse loginud!";
-								//res.render("signin",{notice: notice});
-								req.session.userId = result[0].id;
-								res.redirect("/home");
-							}
-							else {
-								notice = "Kasutajatunnus ja/või parool on vale!";
-								res.render("signin",{notice: notice});
-							}
-						}
-					});
-				}
-				else {
-					notice = "Kasutajatunnus ja/või parool on vale!";
-					res.render("signin",{notice: notice});
-				}
-			}
-		});//conn.execute lõppeb
-	}
-	//res.render("index",{days: dtEt.daysBetween("9-2-2024")});
-});
-
-app.get("/home", checkLogin, (req, res)=>{
+app.get("/home", general.checkLogin, (req, res)=>{
 	console.log("Sees on kasutaja: " + req.session.userId);
 	res.render("home");
 });
@@ -250,118 +175,17 @@ app.post("/regvisitdb", (req, res)=>{
 	}
 });
 
-app.get("/eestifilm", (req, res)=>{
-	res.render("filmindex");
-});
-
-app.get("/eestifilm/tegelased", (req, res)=>{
-	let sqlReq = "SELECT first_name, last_name, birth_date FROM person";
-	let persons = [];
-	connInga.query(sqlReq, (err, sqlres)=>{
-		if(err){
-			throw err;
-		}
-		else {
-			console.log(sqlres);
-			//persons = sqlres;
-			//for    i  algab 0 piiriks sqlres.length
-			//tsükli sees lisame persons listile uue elemendi, mis on ise "objekt" {first_name: sqlres[i].first_name}
-			//listi lisamiseks on käsk    
-			//push.persons(lisatav element);
-			for (let i = 0; i < sqlres.length; i ++){
-				persons.push({first_name: sqlres[i].first_name, last_name: sqlres[i].last_name, birth_date: dtEt.givenDateFormatted(sqlres[i].birth_date)});
-			}
-			res.render("tegelased", {persons: persons});
-		}
-		
-	});
-	//res.render("tegelased");
-});
-
-app.get("/eestifilm/lisaSeos", (req, res)=>{
-	//võtan kasutusele async mooduli, et korraga teha mitu andmebaasipäringut
-	const filmQueries = [
-		function(callback){
-			let sqlReq1 = "SELECT id, first_name, last_name, birth_date FROM person";
-			connInga.execute(sqlReq1, (err, result)=>{
-				if(err){
-					return callback(err);
-				}
-				else {
-					return callback(null, result);
-				}
-			});
-		},
-		function(callback){
-			let sqlReq2 = "SELECT id, title, production_year FROM movie";
-			connInga.execute(sqlReq2, (err, result)=>{
-				if(err){
-					return callback(err);
-				}
-				else {
-					return callback(null, result);
-				}
-			});
-		},
-		function(callback){
-			let sqlReq3 = "SELECT id, position_name FROM position";
-			connInga.execute(sqlReq3, (err, result)=>{
-				if(err){
-					return callback(err);
-				}
-				else {
-					return callback(null, result);
-				}
-			});
-		}
-	];
-	//paneme need päringud ehk siis funktsioonid paralleelselt käima, tulemuseks saame kolme päringu koondi
-	async.parallel(filmQueries, (err, results)=>{
-		if(err){
-			throw err;
-		}
-		else{
-			console.log(results);
-			res.render("addRelations", {personList: results[0], movieList: results[1], positionList: results[2]});
-		}
-	});
-	//res.render("addRelations");
-});
+//eesti filmi osa eraldi marsruutide failiga
+const eestifilmRouter = require('./routes/eestifilmRoutes');
+app.use('/eestifilm', eestifilmRouter);
 
 //uudiste osa eraldi marsruutide failiga
 const newsRouter = require("./routes/newsRoutes");
 app.use("/news", newsRouter);
 
-
-app.get("/photoupload", (req, res)=>{
-	res.render("photoupload");
-});
-
-app.post("/photoupload", upload.single("photoInput"), (req, res)=>{
-	console.log(req.body);
-	console.log(req.file);
-	//genereerime oma failinime
-	const fileName = "vp_" + Date.now() + ".jpg";
-	//nimetame üleslaetud faili ümber
-	fs.rename(req.file.path, req.file.destination + fileName, (err)=>{
-		console.log(err);
-	});
-	//teeme 2 erisuurust
-	sharp(req.file.destination + fileName).resize(800,600).jpeg({quality: 90}).toFile("./public/gallery/normal/" + fileName);
-	sharp(req.file.destination + fileName).resize(100,100).jpeg({quality: 90}).toFile("./public/gallery/thumb/" + fileName);
-	//salvestame andmebaasi
-	let sqlReq = "INSERT INTO vp1photos (file_name, orig_name, alt_text, privacy, user_id) VALUES(?,?,?,?,?)";
-	const userId = 1;
-	conn.query(sqlReq, [fileName, req.file.originalname, req.body.altInput, req.body.privacyInput, userId], (err, result)=>{
-		if(err){
-			throw err;
-		}
-		else {
-			res.render("photoupload");
-		}
-	});
-	//res.render("photoupload");
-});
+//fotodeüleslaadimise osa eraldi marsruutide failiga
+const photoupRouter = require("./routes/photouploadRoutes");
+app.use("/photoupload", photoupRouter);
 
 app.get("/gallery", (req, res)=>{
 	let sqlReq = "SELECT file_name, alt_text FROM vp1photos WHERE privacy = ? AND deleted IS NULL ORDER BY id DESC";
