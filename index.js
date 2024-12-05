@@ -183,27 +183,13 @@ app.use('/eestifilm', eestifilmRouter);
 const newsRouter = require("./routes/newsRoutes");
 app.use("/news", newsRouter);
 
-//fotodeüleslaadimise osa eraldi marsruutide failiga
+//fotode üleslaadimise osa eraldi marsruutide failiga
 const photoupRouter = require("./routes/photouploadRoutes");
 app.use("/photoupload", photoupRouter);
 
-app.get("/gallery", (req, res)=>{
-	let sqlReq = "SELECT file_name, alt_text FROM vp1photos WHERE privacy = ? AND deleted IS NULL ORDER BY id DESC";
-	const privacy = 3;
-	let photoList = [];
-	conn.query(sqlReq, [privacy], (err, result)=>{
-		if(err){
-			throw err;
-		}
-		else {
-			console.log(result);
-			for(let i = 0; i < result.length; i ++) {
-				photoList.push({href: "/gallery/thumb/" + result[i].file_name, alt: result[i].alt_text, fileName: result[i].file_name});
-			}
-			res.render("gallery", {listData: photoList});
-		}
-	});
-	//res.render("gallery");
-});
+//galerii osa eraldi marsruutide failiga
+const galleryRouter = require("./routes/galleryRoutes");
+app.use("/gallery", galleryRouter);
+
 
 app.listen(5100);
