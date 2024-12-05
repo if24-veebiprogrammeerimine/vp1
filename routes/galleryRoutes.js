@@ -7,10 +7,13 @@ router.use(general.checkLogin);
 
 //kontrollerid
 const {
-	galleryOpenPage} = require("../controllers/galleryControllers");
+	galleryOpenPage,
+	galleryPage} = require("../controllers/galleryControllers");
 
 //igale marsruudile oma osa nagu seni index failis
 
 router.route("/").get(galleryOpenPage);
+
+router.route("/:page").get(galleryPage);
 
 module.exports = router;
